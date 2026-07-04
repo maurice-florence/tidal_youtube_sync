@@ -107,6 +107,11 @@ def sync_to_tidal(yt_tracks, prefix=""):
             logging.error(f"Fout bij laden Tidal sessie voor '{account_name}': {e}")
             return
     else:
+        # Als we in GitHub Actions draaien, kunnen we geen interactieve browser openen.
+        if os.getenv("GITHUB_ACTIONS"):
+            logging.error(f"Tokens ontbreken voor account '{account_name}'. Kan niet interactief inloggen in de cloud. Sla dit account over.")
+            return
+            
         logging.info(f"Eerste keer inloggen op Tidal voor account '{account_name}'. Controleer de terminal/browser...")
         session.login_oauth_simple()
         logging.info(f"\n=== KOPIEER DEZE WAARDEN NAAR JE .env EN GITHUB SECRETS ===")
@@ -174,4 +179,7 @@ if __name__ == "__main__":
                 logging.error("Geen enkele Tidal configuratie gevonden! Stel op z'n minst TIDAL_PLAYLIST_ID in.")
             
             for prefix in prefixes:
-                sync_to_tidal(tracks, prefix)
+                try:
+                    sync_to_tidal(tracks, prefix)
+                except Exception as e:
+                    logging.error(f"Onverwachte fout tijdens syncen van account '{prefix if prefix else 'Standaard'}': {e}")

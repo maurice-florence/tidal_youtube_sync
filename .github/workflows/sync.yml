@@ -2,7 +2,7 @@ name: Sync YouTube Music to Tidal
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # Draait elke 2 uur
+    - cron: '0 * * * *'  # Draait elk uur
   workflow_dispatch:       # Zorgt dat je in GitHub ook handmatig op 'Run' kunt klikken
 
 jobs:

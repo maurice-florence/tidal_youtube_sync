@@ -31,7 +31,7 @@ class TestSync(unittest.TestCase):
     @patch('sync.tidalapi.Session')
     def test_sync_to_tidal_adds_new_tracks(self, mock_session_class, mock_getenv):
         # Mock environment variables
-        mock_getenv.side_effect = lambda k: "fake" if k in ["TIDAL_SESSION_ID", "TIDAL_TOKEN_TYPE", "TIDAL_ACCESS_TOKEN", "TIDAL_REFRESH_TOKEN"] else None
+        mock_getenv.side_effect = lambda k: "fake" if k.endswith("TIDAL_SESSION_ID") or k.endswith("TOKEN") else ("fake_tidal_playlist_id" if k.endswith("TIDAL_PLAYLIST_ID") else None)
         
         mock_session = MagicMock()
         mock_session_class.return_value = mock_session
@@ -61,7 +61,7 @@ class TestSync(unittest.TestCase):
             {'title': 'New Song', 'artist': 'New Artist'}
         ]
         
-        sync_to_tidal(yt_tracks, "fake_tidal_playlist_id")
+        sync_to_tidal(yt_tracks, "TEST_VRIEND")
         
         # Verify add was called for New Song only
         # De eerste yt_track wordt overgeslagen vanwege de 'existing' check.

@@ -46,6 +46,7 @@ class TestSync(unittest.TestCase):
         mock_existing_track.name = "Existing Song"
         mock_existing_track.artist.name = "Existing Artist"
         mock_existing_track.id = "existing_id"
+        mock_existing_track.date_added = None
         mock_playlist.items.return_value = [mock_existing_track]
         
         # Mock search result for a new song

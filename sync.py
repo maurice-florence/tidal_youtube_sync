@@ -57,7 +57,6 @@ def sync_to_tidal(yt_tracks, tidal_playlist_id):
         logging.info("Inloggen op Tidal via opgeslagen tokens...")
         try:
             session.load_oauth_session(
-                session_id=t_session_id,
                 token_type=t_token_type,
                 access_token=t_access_token,
                 refresh_token=t_refresh_token

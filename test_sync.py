@@ -46,12 +46,13 @@ class TestSync(unittest.TestCase):
         mock_existing_track.name = "Existing Song"
         mock_existing_track.artist.name = "Existing Artist"
         mock_existing_track.id = "existing_id"
-        mock_playlist.tracks.return_value = [mock_existing_track]
+        mock_playlist.items.return_value = [mock_existing_track]
         
         # Mock search result for a new song
         mock_search_result = MagicMock()
         mock_found_track = MagicMock()
         mock_found_track.id = "new_id"
+        mock_found_track.name = "New Song"
         mock_search_result.tracks = [mock_found_track] 
         mock_session.search.return_value = mock_search_result
         

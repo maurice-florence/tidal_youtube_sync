@@ -3,6 +3,8 @@ import logging
 from ytmusicapi import YTMusic
 import tidalapi
 from dotenv import load_dotenv
+from difflib import SequenceMatcher
+from datetime import datetime, timezone
 
 # Logging instellen
 logging.basicConfig(
@@ -11,6 +13,15 @@ logging.basicConfig(
 )
 
 load_dotenv()
+
+def is_similar(a, b, threshold=0.5):
+    """
+    Controleert of twee strings voor een bepaald percentage op elkaar lijken.
+    Handig om te voorkomen dat Tidal willekeurige resultaten toevoegt.
+    """
+    if not a or not b:
+        return False
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio() >= threshold
 
 def get_youtube_tracks(playlist_id):
     """
@@ -44,7 +55,7 @@ def get_youtube_tracks(playlist_id):
 
 def sync_to_tidal(yt_tracks, tidal_playlist_id):
     """
-    Synchroniseert de lijst naar Tidal.
+    Synchroniseert de lijst naar Tidal (Zowel toevoegen als opschonen).
     """
     session = tidalapi.Session()
     
@@ -91,10 +102,14 @@ def sync_to_tidal(yt_tracks, tidal_playlist_id):
         logging.error(f"Geen Tidal afspeellijst gevonden met ID: {tidal_playlist_id}")
         return
 
-    tidal_tracks = playlist.tracks()
-    existing_combinations = [f"{t.name.lower()} {t.artist.name.lower()}" for t in tidal_tracks if hasattr(t, 'name') and hasattr(t, 'artist')]
-    existing_ids = [t.id for t in tidal_tracks]
+    # Ophalen via items() in plaats van tracks() om date_added te kunnen gebruiken
+    items = list(playlist.items())
     
+    # We slaan de namen op voor de duplicate-check
+    existing_combinations = [f"{t.name.lower()} {t.artist.name.lower()}" for t in items if hasattr(t, 'name') and hasattr(t, 'artist')]
+    existing_ids = [t.id for t in items]
+    
+    # --- 1. TOEVOEGEN VAN NIEUWE NUMMERS ---
     added_count = 0
     for yt_track in yt_tracks:
         search_query = f"{yt_track['title']} {yt_track['artist']}"
@@ -107,18 +122,53 @@ def sync_to_tidal(yt_tracks, tidal_playlist_id):
         
         if tracks_found:
             top_match = tracks_found[0]
-            if top_match.id not in existing_ids:
-                try:
-                    playlist.add([top_match.id])
-                    logging.info(f"Toegevoegd: {yt_track['title']} - {yt_track['artist']}")
-                    existing_ids.append(top_match.id)
-                    added_count += 1
-                except Exception as e:
-                    logging.error(f"Fout bij toevoegen {search_query}: {e}")
+            
+            # Fuzzy match check!
+            if is_similar(yt_track['title'], top_match.name, threshold=0.5):
+                if top_match.id not in existing_ids:
+                    try:
+                        playlist.add([top_match.id])
+                        logging.info(f"Toegevoegd: {yt_track['title']} - {yt_track['artist']}")
+                        existing_ids.append(top_match.id)
+                        added_count += 1
+                    except Exception as e:
+                        logging.error(f"Fout bij toevoegen {search_query}: {e}")
+            else:
+                logging.warning(f"Geweigerd: Tidal vond '{top_match.name}', maar dit lijkt onvoldoende op '{yt_track['title']}'.")
         else:
             logging.warning(f"Niet gevonden in Tidal: {search_query}")
             
-    logging.info(f"Sync compleet. Er zijn {added_count} nieuwe nummers toegevoegd.")
+    logging.info(f"Toevoeg-ronde compleet. {added_count} nieuwe nummers toegevoegd.")
+
+    # --- 2. OPSCHOON-RONDE (VERWIJDEREN) ---
+    # Beveiliging: alleen nummers verwijderen die ná 1 juli 2026 zijn toegevoegd aan Tidal.
+    CUTOFF_DATE = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    removed_count = 0
+    
+    # We itereren achterstevoren zodat de indexen kloppen als we er eentje verwijderen
+    for i in range(len(items) - 1, -1, -1):
+        item = items[i]
+        
+        # Controleer de datagrens
+        if hasattr(item, 'date_added') and item.date_added and item.date_added >= CUTOFF_DATE:
+            # Is dit nummer nog aanwezig in YouTube?
+            found_in_yt = False
+            for yt_track in yt_tracks:
+                if is_similar(yt_track['title'], item.name, threshold=0.5):
+                    found_in_yt = True
+                    break
+            
+            if not found_in_yt:
+                try:
+                    # playlist.remove_by_index verwijdert het n-de element in de lijst
+                    playlist.remove_by_index(i)
+                    logging.info(f"Verwijderd: {item.name} - {item.artist.name} (niet meer aanwezig in YouTube)")
+                    removed_count += 1
+                except Exception as e:
+                    logging.error(f"Fout bij verwijderen {item.name}: {e}")
+                    
+    if removed_count > 0:
+        logging.info(f"Opschoon-ronde compleet. Er zijn {removed_count} nummers verwijderd.")
 
 if __name__ == "__main__":
     YOUTUBE_PLAYLIST_ID = os.getenv("YOUTUBE_PLAYLIST_ID")

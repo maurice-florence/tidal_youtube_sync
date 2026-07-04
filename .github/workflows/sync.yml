@@ -24,6 +24,10 @@ jobs:
           
       - name: Run Sync Script
         env:
-          SECRETS_CONTEXT: ${{ toJSON(secrets) }}
           YOUTUBE_PLAYLIST_ID: ${{ secrets.YOUTUBE_PLAYLIST_ID }}
+          TIDAL_PLAYLIST_ID: ${{ secrets.TIDAL_PLAYLIST_ID }}
+          TIDAL_SESSION_ID: ${{ secrets.TIDAL_SESSION_ID }}
+          TIDAL_TOKEN_TYPE: ${{ secrets.TIDAL_TOKEN_TYPE }}
+          TIDAL_ACCESS_TOKEN: ${{ secrets.TIDAL_ACCESS_TOKEN }}
+          TIDAL_REFRESH_TOKEN: ${{ secrets.TIDAL_REFRESH_TOKEN }}
         run: python sync.py

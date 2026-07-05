@@ -104,37 +104,62 @@ def sync_to_tidal(yt_tracks, tidal_playlist_id):
 
     # Ophalen via items() in plaats van tracks() om date_added te kunnen gebruiken
     items = list(playlist.items())
-    
-    # We slaan de namen op voor de duplicate-check
-    existing_combinations = [f"{t.name.lower()} {t.artist.name.lower()}" for t in items if hasattr(t, 'name') and hasattr(t, 'artist')]
     existing_ids = [t.id for t in items]
     
     # --- 1. TOEVOEGEN VAN NIEUWE NUMMERS ---
     added_count = 0
+    bad_album_keywords = ["greatest hits", "best of", "compilation", "anthology", "essential", "collection"]
+    
     for yt_track in yt_tracks:
         search_query = f"{yt_track['title']} {yt_track['artist']}"
         
-        if search_query.lower() in existing_combinations:
+        # Fuzzy match duplicate check
+        already_exists = False
+        for item in items:
+            if hasattr(item, 'name') and hasattr(item, 'artist'):
+                # Controleren op titel (70% match) en op artiest (50% match)
+                if is_similar(yt_track['title'], item.name, threshold=0.7) and is_similar(yt_track['artist'], item.artist.name, threshold=0.5):
+                    already_exists = True
+                    break
+                    
+        if already_exists:
             continue
             
         search_result = session.search(search_query, models=[tidalapi.Track])
         tracks_found = search_result.get('tracks', []) if isinstance(search_result, dict) else search_result.tracks
         
         if tracks_found:
-            top_match = tracks_found[0]
+            best_match = None
             
-            # Fuzzy match check!
-            if is_similar(yt_track['title'], top_match.name, threshold=0.5):
-                if top_match.id not in existing_ids:
+            for track in tracks_found:
+                if not is_similar(yt_track['title'], track.name, threshold=0.5):
+                    continue
+                
+                album_name = track.album.name.lower() if track.album and hasattr(track.album, 'name') else ""
+                is_compilation = any(kw in album_name for kw in bad_album_keywords)
+                
+                if not is_compilation:
+                    best_match = track
+                    break
+            
+            # Fallback als we alleen compilaties of niks vonden
+            if not best_match:
+                for track in tracks_found:
+                    if is_similar(yt_track['title'], track.name, threshold=0.5):
+                        best_match = track
+                        break
+                        
+            if best_match:
+                if best_match.id not in existing_ids:
                     try:
-                        playlist.add([top_match.id])
+                        playlist.add([best_match.id])
                         logging.info(f"Toegevoegd: {yt_track['title']} - {yt_track['artist']}")
-                        existing_ids.append(top_match.id)
+                        existing_ids.append(best_match.id)
                         added_count += 1
                     except Exception as e:
                         logging.error(f"Fout bij toevoegen {search_query}: {e}")
             else:
-                logging.warning(f"Geweigerd: Tidal vond '{top_match.name}', maar dit lijkt onvoldoende op '{yt_track['title']}'.")
+                logging.warning(f"Geweigerd: Geen van de zoekresultaten voor '{yt_track['title']}' was accuraat genoeg.")
         else:
             logging.warning(f"Niet gevonden in Tidal: {search_query}")
             

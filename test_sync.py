@@ -51,10 +51,20 @@ class TestSync(unittest.TestCase):
         
         # Mock search result for a new song
         mock_search_result = MagicMock()
-        mock_found_track = MagicMock()
-        mock_found_track.id = "new_id"
-        mock_found_track.name = "New Song"
-        mock_search_result.tracks = [mock_found_track] 
+        
+        # Track 1: Compilation
+        mock_found_track_compilation = MagicMock()
+        mock_found_track_compilation.id = "comp_id"
+        mock_found_track_compilation.name = "New Song"
+        mock_found_track_compilation.album.name = "Greatest Hits"
+        
+        # Track 2: Original Album
+        mock_found_track_original = MagicMock()
+        mock_found_track_original.id = "new_id"
+        mock_found_track_original.name = "New Song"
+        mock_found_track_original.album.name = "Original Album"
+        
+        mock_search_result.tracks = [mock_found_track_compilation, mock_found_track_original] 
         mock_session.search.return_value = mock_search_result
         
         yt_tracks = [
@@ -64,7 +74,7 @@ class TestSync(unittest.TestCase):
         
         sync_to_tidal(yt_tracks, "fake_tidal_playlist_id")
         
-        # Verify add was called for New Song only
+        # Verify add was called for New Song only, and specifically the original album
         mock_session.search.assert_called_once_with('New Song New Artist', models=[tidalapi.Track])
         mock_playlist.add.assert_called_once_with(['new_id'])
 
